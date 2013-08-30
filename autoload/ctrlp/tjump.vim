@@ -1,29 +1,38 @@
-if ( exists('g:loaded_ctrlp_tjump') && g:loaded_ctrlp_tjump )
-  \ || v:version < 700 || &cp
+if (exists('g:loaded_ctrlp_tjump') && g:loaded_ctrlp_tjump)
+      \ || v:version < 700 || &cp
   finish
 endif
 let g:loaded_ctrlp_tjump = 1
 
 call add(g:ctrlp_ext_vars, {
-  \ 'init': 'ctrlp#tjump#init()',
-  \ 'accept': 'ctrlp#tjump#accept',
-  \ 'lname': 'tjump',
-  \ 'sname': 'tjump',
-  \ 'type': 'line',
-  \ 'enter': 'ctrlp#tjump#enter()',
-  \ 'exit': 'ctrlp#tjump#exit()',
-  \ 'opts': 'ctrlp#tjump#opts()',
-  \ 'sort': 0,
-  \ 'specinput': 0,
-  \ })
+      \ 'init': 'ctrlp#tjump#init()',
+      \ 'accept': 'ctrlp#tjump#accept',
+      \ 'lname': 'tjump',
+      \ 'sname': 'tjump',
+      \ 'type': 'line',
+      \ 'enter': 'ctrlp#tjump#enter()',
+      \ 'exit': 'ctrlp#tjump#exit()',
+      \ 'opts': 'ctrlp#tjump#opts()',
+      \ 'sort': 0,
+      \ 'specinput': 0,
+      \ })
 
-function! ctrlp#tjump#exec(word)
-  let s:word = a:word
-  let taglist = taglist('^'.s:word.'$')
+function! ctrlp#tjump#exec(mode)
+  if a:mode == 'v'
+    let s:word = s:get_visual_selection()
+  else
+    if (&filetype == 'ruby' || &filetype == 'eruby') && exists("*RubyCursorIdentifier")
+      let s:word = RubyCursorIdentifier()
+    else
+      let s:word = expand('<cword>')
+    endif
+  endif
 
-  if len(taglist) == 0
+  let s:taglist = taglist('^'.s:word.'$')
+
+  if len(s:taglist) == 0
     echo("No tags found for: ".s:word)
-  elseif len(taglist) == 1
+  elseif len(s:taglist) == 1
     call feedkeys(":tag ".s:word."\r", 'nt')
   else
     call ctrlp#init(ctrlp#tjump#id())
@@ -35,10 +44,10 @@ endfunction
 " Return: a Vim's List
 "
 function! ctrlp#tjump#init()
-  let input = map(taglist('^'.s:word.'$'), 'v:val["kind"] . "\t" . v:val["name"] . "\t" . v:val["filename"] . "\t" . v:val["cmd"]')
+  let input = map(s:taglist, 'v:key + 1 . "\t" . v:val["kind"] . "\t" . v:val["name"] . "\t" . v:val["filename"] . "\t" . v:val["cmd"]')
   if !ctrlp#nosy()
     cal ctrlp#hicheck('CtrlPTabExtra', 'Comment')
-    sy match CtrlPTabExtra `^.*\t\(.*\t\)\@=`
+    sy match CtrlPTabExtra `^\(.\{-}\t\)\{3}`
     sy match CtrlPTabExtra `\(.*\t\)\@<=/.*/$`
   en
   return input
@@ -82,7 +91,25 @@ function! ctrlp#tjump#id()
 endfunction
 
 function! s:open_tag(str)
-  let [kind, name, filename, cmd] = split(a:str, '\t')
-  let cmd = substitute(cmd, ' ', '\\ ', 'g')
-  call feedkeys(":edit +".cmd." ".filename."\r", 'nt')
+  " If 'cscopetag' is set, the 'tag' command will actually use the 'cstag'
+  " command which in turn performs a 'tjump'. Since 'tjump' doesn't support
+  " ranges, if there is more than one match, the default tags menu is
+  " displayed. To work around this, we temporarily disable using 'cstag',
+  " however, in order to restore the option after a selection has been made we
+  " have to use 'exec' instead of 'feedkeys', otherwise the script will exit
+  " with the options restored before the 'tag' command is actually run.
+  let cstopt = &cst
+  set nocst
+  let idx = split(a:str, '\t')[0]
+  exec ":".idx."tag ".s:word
+  let &cst = cstopt
+endfunction
+
+function! s:get_visual_selection()
+  let [lnum1, col1] = getpos("'<")[1:2]
+  let [lnum2, col2] = getpos("'>")[1:2]
+  let lines = getline(lnum1, lnum2)
+  let lines[-1] = lines[-1][: col2 - (&selection == 'inclusive' ? 1 : 2)]
+  let lines[0] = lines[0][col1 - 1:]
+  return join(lines, "\n")
 endfunction
