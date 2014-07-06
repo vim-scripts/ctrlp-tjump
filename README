@@ -15,8 +15,10 @@ Prerequisites:
 
 Installation:
 1. Use your favorite method (I prefer Vundle)
-2. (Optional) Create mapping
+2. (Optional) Create mappings:
 nnoremap <c-]> :CtrlPtjump<cr>
+vnoremap <c-]> :CtrlPtjumpVisual<cr>
+
 
 Usage:
 1. Move cursor to the Class/Method usage in your code
